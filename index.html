@@ -1,0 +1,171 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AES-256 File Encryptor</title>
+<!-- Library for AES encryption and key derivation -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/crypto-js/4.2.0/crypto-js.min.js"></script>
+<!-- Icon set used for all visible UI icons -->
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css">
+<link href="https://fonts.googleapis.com/css2?family=Space+Mono:ital,wght@0,400;0,700;1,400&family=Syne:wght@400;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="aes256-encryptor.css">
+</head>
+<body>
+
+<div class="orb2"></div>
+<div class="scanline"></div>
+
+<header>
+  <div class="logo">
+    <div class="logo-icon"><i class="fa-solid fa-shield-halved"></i></div>
+    <div>
+      <div class="logo-text">Kelompok 3</div>
+      <div class="logo-sub">File Encryption System</div>
+    </div>
+  </div>
+  <div class="badge" id="headerBadge">AES-256-CBC</div>
+</header>
+
+<main>
+  <div class="hero">
+    <h1>Enkripsi File<br><span>Kriptografi</span></h1>
+  </div>
+
+  <!-- Switch between encrypt and decrypt workflows -->
+  <div class="mode-toggle">
+    <button class="mode-btn active" id="btnEncrypt" onclick="setMode('encrypt')"><i class="fa-solid fa-lock"></i><span>Enkripsi</span></button>
+    <button class="mode-btn" id="btnDecrypt" onclick="setMode('decrypt')"><i class="fa-solid fa-lock-open"></i><span>Dekripsi</span></button>
+  </div>
+
+<!-- Upload area and selected file summary -->
+  <div class="card">
+    <div class="card-title">01 — Upload File</div>
+
+    <div class="dropzone" id="dropzone"
+      ondragover="handleDrag(event, true)"
+      ondragleave="handleDrag(event, false)"
+      ondrop="handleDrop(event)">
+      <input type="file" id="fileInput" accept=".txt,.pdf,.enc" onchange="handleFile(this.files[0])">
+      <span class="drop-icon" id="dropIcon"><i class="fa-solid fa-folder-open"></i></span>
+      <div class="drop-title" id="dropTitle">Drag & Drop atau Klik untuk Pilih File</div>
+      <div class="drop-sub" id="dropSub">Dukung format berikut:</div>
+      <div class="file-types" id="fileTypes">
+        <span class="file-type-tag tag-txt">TXT</span>
+        <span class="file-type-tag tag-pdf">PDF</span>
+      </div>
+    </div>
+
+    <div class="file-info" id="fileInfo">
+      <div class="file-icon-wrap" id="fileIconWrap"><i class="fa-regular fa-file-lines"></i></div>
+      <div class="file-details">
+        <div class="file-name" id="fileName">-</div>
+        <div class="file-meta" id="fileMeta">-</div>
+      </div>
+      <button class="file-remove" onclick="removeFile()" title="Hapus file"><i class="fa-solid fa-xmark"></i></button>
+    </div>
+  </div>
+
+  <!-- Password, IV, and cipher option controls -->
+  <div class="card">
+    <div class="card-title">02 — Kunci Enkripsi</div>
+
+    <div class="field-wrap">
+      <label>Password / Passphrase</label>
+      <div class="input-wrap">
+        <input type="password" id="passInput" placeholder="Masukkan password yang kuat..." oninput="updateStrength()">
+        <button class="eye-btn" onclick="togglePass()" id="eyeBtn"><i class="fa-regular fa-eye"></i></button>
+      </div>
+      <div class="strength-wrap" id="strengthWrap">
+        <div class="strength-label">
+          <span>Kekuatan Password</span>
+          <span id="strengthText">—</span>
+        </div>
+        <div class="strength-bar">
+          <div class="strength-fill" id="strengthFill"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- IV input is only relevant for encryption mode -->
+    <div class="field-wrap" id="ivSection" style="margin-top:20px">
+      <label>Initialization Vector (IV) — 32 karakter hex (128-bit)</label>
+      <div class="input-wrap" style="display:flex;gap:8px">
+        <input type="text" id="ivInput" placeholder="Masukkan IV hex (32 karakter) atau generate otomatis..." maxlength="32" style="flex:1;letter-spacing:1px;font-size:12px" oninput="validateIV()">
+        <button class="gen-btn" onclick="generateIV()" title="Generate IV acak"><i class="fa-solid fa-dice"></i><span>Generate</span></button>
+      </div>
+      <div id="ivStatus" style="font-family:'Space Mono',monospace;font-size:10px;margin-top:6px;color:var(--muted)">Kosongkan untuk generate IV acak otomatis saat enkripsi</div>
+    </div>
+
+    <!-- Cipher mode and padding selection -->
+    <div class="options-row" id="optionsRow" style="margin-top:20px;flex-direction:column;gap:16px">
+      <!-- Cipher mode affects IV handling and encryption behavior -->
+      <div>
+        <label style="margin-bottom:10px">Mode Cipher</label>
+        <div class="chip-group" id="modeGroup">
+          <button class="sel-chip active" data-val="CBC" onclick="selectChip('modeGroup','CBC',this)"><i class="fa-solid fa-arrows-rotate"></i><span>CBC</span></button>
+          <button class="sel-chip" data-val="CFB" onclick="selectChip('modeGroup','CFB',this)"><i class="fa-solid fa-water"></i><span>CFB</span></button>
+          <button class="sel-chip" data-val="OFB" onclick="selectChip('modeGroup','OFB',this)"><i class="fa-solid fa-rotate"></i><span>OFB</span></button>
+          <button class="sel-chip" data-val="GCM" onclick="selectChip('modeGroup','GCM',this)"><i class="fa-solid fa-shield"></i><span>GCM</span></button>
+        </div>
+        <div id="modeDesc" style="font-family:'Space Mono',monospace;font-size:10px;color:var(--muted);margin-top:8px">CBC: Cipher Block Chaining — setiap blok XOR dengan ciphertext sebelumnya. Butuh padding.</div>
+      </div>
+
+      <!-- Padding is disabled in the UI when GCM is selected -->
+      <div id="paddingSection">
+        <label style="margin-bottom:10px">Padding</label>
+        <div class="chip-group" id="paddingGroup">
+          <button class="sel-chip active" data-val="Pkcs7" onclick="selectChip('paddingGroup','Pkcs7',this)">PKCS7</button>
+          <button class="sel-chip" data-val="ZeroPadding" onclick="selectChip('paddingGroup','ZeroPadding',this)">Zero</button>
+          <button class="sel-chip" data-val="Iso10126" onclick="selectChip('paddingGroup','Iso10126',this)">ISO10126</button>
+          <button class="sel-chip" data-val="AnsiX923" onclick="selectChip('paddingGroup','AnsiX923',this)">ANSI X923</button>
+          <button class="sel-chip" data-val="NoPadding" onclick="selectChip('paddingGroup','NoPadding',this)">No Padding</button>
+        </div>
+      </div>
+
+      <!-- Optional custom salt for PBKDF2 -->
+      <div>
+        <label style="margin-bottom:10px">Opsi Tambahan</label>
+        <div class="chip-group">
+          <button class="sel-chip" id="chipSalt" onclick="toggleSalt(this)"><i class="fa-solid fa-prescription-bottle-medical"></i><span>Custom Salt</span></button>
+        </div>
+        <div class="field-wrap" id="saltField" style="display:none;margin-top:12px">
+          <div class="input-wrap">
+            <input type="text" id="saltInput" placeholder="Masukkan salt custom...">
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Progress display, alerts, and the main action button -->
+  <div class="card">
+    <div class="card-title">03 — Proses</div>
+
+    <div class="progress-wrap" id="progressWrap">
+      <div class="progress-bar-bg">
+        <div class="progress-fill" id="progressFill"></div>
+      </div>
+      <div class="progress-text" id="progressText">Memproses...</div>
+    </div>
+
+    <div class="alert" id="alertBox">
+      <span class="alert-icon" id="alertIcon"><i class="fa-solid fa-circle-check"></i></span>
+      <span id="alertMsg"></span>
+    </div>
+
+    <button class="action-btn" id="actionBtn" onclick="processFile()">
+      <span class="btn-shine"></span>
+      <span id="actionLabel"><span>Enkripsi File Sekarang</span></span>
+    </button>
+  </div>
+  </div>
+</main>
+
+<footer>
+  Kelompok 3 — <span>AES-256 File Encryption</span> &nbsp;|&nbsp; Dibuat dengan <i class="fa-solid fa-heart"></i> oleh Kelompok 3 &mdash; 2024
+</footer>
+
+<script src="aes256-encryptor.js"></script>
+</body>
+</html>
